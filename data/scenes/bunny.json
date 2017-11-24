@@ -1,0 +1,33 @@
+{
+    "lights": [
+        {
+            "ambient_color": [100, 100, 100],
+            "diffuse_color": [255, 255, 255],
+            "specular_color": [255, 255, 255],
+            "direction": [-1.0, -1.0, -1.0]
+        }
+    ],
+    "fluid_volumes": [
+        {
+            "type": "box",
+            "name": "fluid_1",
+            "size": [0.5, 1, 0.7],
+            "center": [0.74, 0.0, 0]
+        }
+    ],
+    "container": {
+        "width": 2.0,
+        "height": 1.0,
+        "depth": 1.0
+    },
+    "rigid_bodies": [
+        {
+            "type": "model",
+            "name": "bunny",
+            "obj_filename": "data/models/bunny.obj",
+            "mass": 10.0,
+            "center": [-0.10, -0.4, 0.1],
+            "rotation": [0, 1, 0, 0.5]
+        }
+    ]
+}

@@ -1,0 +1,15 @@
+# Simulation settings
+time_step=0.0012
+max_vel=10.0
+fluid_particle_radius=0.008
+fluid_support_radius=0.032
+boundary_particle_radius=0.008
+boundary_support_radius=0.128
+method=wcsph
+
+# Physics settings
+rest_density=1000
+k_viscosity=0.00001
+gravity=9.8
+gas_stiffness=750
+surface_tension=0.001

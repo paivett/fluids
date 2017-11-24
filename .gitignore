@@ -1,0 +1,7 @@
+#Directory where the obj files are compiled
+.obj
+#The executable
+sph
+Makefile
+#More stuff
+.vscode
