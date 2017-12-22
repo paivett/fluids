@@ -17,8 +17,8 @@ struct SimulationSettings {
     float fluid_particle_radius;
     float fluid_support_radius;
 
-    float boundary_particle_radius;
-    float boundary_support_radius;
+    int pcisph_max_iterations;
+    float pcisph_error_ratio;
 
     enum Method {
         WCSPH,
@@ -32,8 +32,8 @@ struct SimulationSettings {
           max_vel(50.0),
           fluid_particle_radius(0.008),
           fluid_support_radius(0.032),
-          boundary_particle_radius(0.008),
-          boundary_support_radius(0.032),
+          pcisph_max_iterations(7),
+          pcisph_error_ratio(0.01),
           sim_method(WCSPH)
     {}
 };

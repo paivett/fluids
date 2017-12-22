@@ -1,5 +1,7 @@
 #include "grid.h"
 
+#define SQR_SUPPORT_RADIUS  (CELL_SIZE*CELL_SIZE)
+
 /**
  * @brief Computes the cell hash for each particle
  * @details For each particle, finds the cell the particle is in, and
@@ -141,21 +143,14 @@ kernel void compute_cell_intervals(const global float4* positions,
  * @param particle_count The total number of particles.
  */
 kernel void compute_neigh_list(const global float4* ref_positions,
-                               const global float4* neigh_positions,
+                               read_only image1d_buffer_t neigh_positions,
                                const global int2* cell_interval,
-                               global int* neigh_list,
-                               global int* neigh_list_length,
+                               global write_only int* neigh_list,
+                               global write_only int* neigh_list_length,
                                const GridInfo grid_info,
-                               const float sqr_support_radius,
-                               const int list_max_length,
-                               const int particle_count,
-                               local float4* local_positions) {
+                               const int particle_count) {
     // Current particle index
     int i = get_global_id(0);
-    int local_id = get_local_id(0);
-
-    int local_lower_bound = get_local_size(0) * get_group_id(0);
-    int local_upper_bound = get_local_size(0) * (get_group_id(0) + 1);
 
     // Validate that we are not out of bound
     if(i >= particle_count) {
@@ -165,26 +160,16 @@ kernel void compute_neigh_list(const global float4* ref_positions,
     float4 pos_i = ref_positions[i];
     int4 cell_coord = get_grid_coordinates(&pos_i, &grid_info);
     int list_length = 0;
-
-    // And save them into local mem for later use
-    local_positions[local_id] = pos_i;
-
-    barrier(CLK_LOCAL_MEM_FENCE);
-
-    for (int offset=0; (list_length < list_max_length) && offset<27; ++offset) {
+    for (int offset=0; (list_length < NEIGH_LIST_MAX_LENGTH) && offset<27; ++offset) {
         // Search for particles in the grid's cell
         int4 neigh_cell_coord = cell_coord + CELL_NEIGH_OFFSET[offset];
         int2 interval = cell_interval[CELL_ID(neigh_cell_coord.x, neigh_cell_coord.y, neigh_cell_coord.z, grid_info)];
-        for (int j=interval.x; (list_length < list_max_length) && (j < interval.y); ++j) {
-            float4 pos_j;
-            if (local_lower_bound <= j && j < local_upper_bound)
-                pos_j = local_positions[j - local_lower_bound];
-            else
-                pos_j = neigh_positions[j];
+        for (int j=interval.x; (list_length < NEIGH_LIST_MAX_LENGTH) && (j < interval.y); ++j) {
+            float4 pos_j = read_imagef(neigh_positions, j);
 
             float4 r = pos_i - pos_j;
             float r2 = dot(r, r);
-            if (r2 < sqr_support_radius) {
+            if (r2 < SQR_SUPPORT_RADIUS) {
                 // Build the neigh list
                 neigh_list[mad24(list_length, particle_count, i)] = j;
                 ++list_length;

@@ -39,8 +39,8 @@ class SimulationOptionsTab : public QWidget {
         QLineEdit* _fluid_support_radius;
 
         // Boundary options
-        QLineEdit* _boundary_particle_radius;
-        QLineEdit* _boundary_support_radius;
+        QLineEdit* _pcisph_max_iterations;
+        QLineEdit* _pcisph_error_ratio;
 };
 
 #endif // _SIMULATION_OPTIONS_TAB_H_

@@ -28,8 +28,8 @@ _sb_neigh_list_length(nullptr) {
 
     // Initialize static boundary handler
     _boundary_handler = make_unique<BoundaryHandler>(*_grid,
-                                                     sim_settings.boundary_particle_radius,
-                                                     sim_settings.boundary_support_radius,
+                                                     sim_settings.fluid_particle_radius,
+                                                     sim_settings.fluid_support_radius,
                                                      _rest_density);
 }
 
@@ -207,8 +207,8 @@ void WCSPHSimulation::reset(const PhysicsSettings& fluid_settings,
     // Reset internal params
     _initialize_params(fluid_settings, sim_settings);
     
-    _boundary_handler->set_particle_radius(sim_settings.boundary_particle_radius);
-    _boundary_handler->set_support_radius(sim_settings.boundary_support_radius);
+    _boundary_handler->set_particle_radius(sim_settings.fluid_particle_radius);
+    _boundary_handler->set_support_radius(sim_settings.fluid_support_radius);
 
     _initialize_solver();
 }

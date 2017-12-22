@@ -61,7 +61,10 @@ void main() {
     vec3 color_atten = vec3(0.2, 0.2, 0.5);
 
     //Background Refraction
-    vec2 a = fs_quad_text_coord + normal.xy * 0.020f;
+    vec2 a = fs_quad_text_coord + normal.xy * 0.010f;
+    if (texture(blurred_depth_texture, a).r <= 0.0f) {
+        a = fs_quad_text_coord;
+    }
     vec4 refrac_color = texture(background_texture, a);
 
     //Final Real Color Mix

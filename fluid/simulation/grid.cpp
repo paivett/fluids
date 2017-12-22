@@ -83,6 +83,9 @@ void Grid::_build_kernels() {
     compiler.add_build_option("-cl-mad-enable");
     compiler.add_include_path("kernels");
     compiler.define_constant("USE_MORTON_ENCODING");
+    compiler.define_constant("CELL_SIZE", _grid_info.cell_size);
+    compiler.define_constant("GRID_SIZE", _grid_info.size);
+    compiler.define_constant("CELLS_PER_SIDE", _grid_info.cells_per_side);
 
     _program = compiler.build();
   
@@ -104,10 +107,7 @@ void Grid::compute_neigh_list(cl_mem ref_positions,
     _kernel_neigh_list->set_arg(3, &neigh_list);
     _kernel_neigh_list->set_arg(4, &neigh_list_length);
     _kernel_neigh_list->set_arg(5, &_grid_info);
-    _kernel_neigh_list->set_arg(6, &_sqr_support_radius);
-    _kernel_neigh_list->set_arg(7, &max_list_length);
-    _kernel_neigh_list->set_arg(8, &count);
-    _kernel_neigh_list->set_local_buffer(9, sizeof(cl_float4));
+    _kernel_neigh_list->set_arg(6, &count);
 
     // Now call the kernel
     auto err = _kernel_neigh_list->run(count);

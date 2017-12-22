@@ -31,7 +31,9 @@ _phi(nullptr),
 _sorted_phi(nullptr),
 _fluid_force(nullptr),
 _hashes(nullptr),
-_mask(nullptr) {
+_mask(nullptr),
+_image_positions(nullptr),
+_image_phi(nullptr) {
 
 }
 
@@ -40,6 +42,9 @@ BoundaryHandler::~BoundaryHandler() {
 }
 
 void BoundaryHandler::_release() {
+    CLAllocator::release_buffer(_image_phi);
+    CLAllocator::release_buffer(_image_positions);
+    
     CLAllocator::release_buffer(_raw_positions);
     CLAllocator::release_buffer(_unsorted_positions);
     CLAllocator::release_buffer(_sorted_positions);
@@ -59,11 +64,13 @@ void BoundaryHandler::_release() {
 }
 
 void BoundaryHandler::set_particle_radius(float particle_radius) {
-    float new_particle_spacing = 2 * particle_radius;
-    if (_particle_spacing != new_particle_spacing) {
-        _particle_spacing = new_particle_spacing;
-        // Must rebuild all surfaces
-        _sample_surfaces();
+    if (_count > 0) {
+        float new_particle_spacing = 2 * particle_radius;
+        if (_particle_spacing != new_particle_spacing) {
+            _particle_spacing = new_particle_spacing;
+            // Must rebuild all surfaces
+            _sample_surfaces();
+        }
     }
 }
 
@@ -72,10 +79,12 @@ float BoundaryHandler::particle_radius() const {
 }
 
 void BoundaryHandler::set_support_radius(float support_radius) {
-    if (_support_radius != support_radius) {
-        _support_radius = support_radius;
-        // Must rebuild all surfaces
-        _sample_surfaces();
+    if (_count > 0) {
+        if (_support_radius != support_radius) {
+            _support_radius = support_radius;
+            // Must rebuild all surfaces
+            _sample_surfaces();
+        }
     }
 }
 
@@ -146,7 +155,7 @@ void BoundaryHandler::_sample_surfaces() {
 void BoundaryHandler::_alloc_buffers() {
     cl_int err;
     _raw_positions = CLAllocator::alloc_buffer<cl_float4>(_count, _particles);
-    _unsorted_positions = CLAllocator::alloc_buffer<cl_float4>(_count);
+    _unsorted_positions = CLAllocator::alloc_buffer<cl_float4>(_count, _particles);
     _sorted_positions = CLAllocator::alloc_buffer<cl_float4>(_count);
     _velocities = CLAllocator::alloc_buffer<cl_float4>(_count);
     _sorted_velocities = CLAllocator::alloc_buffer<cl_float4>(_count);
@@ -156,6 +165,11 @@ void BoundaryHandler::_alloc_buffers() {
     _fluid_force = CLAllocator::alloc_buffer<cl_float4>(_count);
     _hashes = CLAllocator::alloc_buffer<cl_uint>(_count);
     _mask = CLAllocator::alloc_buffer<cl_int>(_count);
+
+    
+    //_image_velocities = CLAllocator::alloc_1d_image_from_buff(_count, CL_RGBA, _sorted_velocities);
+    _image_phi = CLAllocator::alloc_1d_image_from_buff(_count, CL_R, _sorted_phi);
+    _image_positions = CLAllocator::alloc_1d_image_from_buff(_count, CL_RGBA, _sorted_positions);
 
     // Also, reallocate all the sub-buffers of each body
     for (auto& rb_info : _bodies) {
@@ -222,14 +236,16 @@ void BoundaryHandler::_sort_positions() {
 }
 
 void BoundaryHandler::_compute_boundary_phi() {
-    _kernel_boundary_phi->set_arg(0, &_raw_positions);
-    _kernel_boundary_phi->set_arg(1, &_phi);
-    _kernel_boundary_phi->set_arg(2, &_rest_density);
-    _kernel_boundary_phi->set_arg(3, &_support_radius);
-    _kernel_boundary_phi->set_arg(4, &_poly6_eval);
-    _kernel_boundary_phi->set_arg(5, &_phi_coefficient);
+    for (auto& rb_info : _bodies) {
+        _kernel_boundary_phi->set_arg(0, &rb_info.transformed_sub_buffer);
+        _kernel_boundary_phi->set_arg(1, &rb_info.phi_sub_buffer);
+        _kernel_boundary_phi->set_arg(2, &_rest_density);
+        _kernel_boundary_phi->set_arg(3, &_poly6_eval);
+        _kernel_boundary_phi->set_arg(4, &_phi_coefficient);
+        _kernel_boundary_phi->set_arg(5, &rb_info.particle_count);
 
-    CLError::check(_kernel_boundary_phi->run(_count));
+        CLError::check(_kernel_boundary_phi->run(rb_info.particle_count));
+    }
 }
 
 void BoundaryHandler::sync(bool sync_all) {
@@ -288,21 +304,19 @@ void BoundaryHandler::apply_fluid_forces(cl_mem fluid_particles,
     }
 
     GridInfo grid_info = _grid.info();
-    cl_float support_radius = grid_info.cell_size;
-    cl_float sqr_support_radius = pow(support_radius, 2);
-    float spiky_grad = -45.0f / (M_PI * pow(support_radius, 6));
+    float support_radius = grid_info.cell_size;
+    float spiky_grad = -45.0f / (M_PI * pow(_support_radius, 6));
     float visc_lapl = 45.0f / (M_PI * pow(_support_radius, 6));
     _kernel_fluid_force->set_arg(2, &fluid_particles);
     _kernel_fluid_force->set_arg(3, &fluid_densities);
     _kernel_fluid_force->set_arg(4, &fluid_pressures);
     _kernel_fluid_force->set_arg(5, &fluid_cell_intervals);
     _kernel_fluid_force->set_arg(6, &fluid_particle_mass);
-    _kernel_fluid_force->set_arg(7, &grid_info.cell_size);
-    _kernel_fluid_force->set_arg(8, &sqr_support_radius);
-    _kernel_fluid_force->set_arg(9, &spiky_grad);
-    _kernel_fluid_force->set_arg(10,&grid_info);
-    _kernel_fluid_force->set_arg(15, &fluid_velocities);
-    _kernel_fluid_force->set_arg(17, &visc_lapl);
+
+    _kernel_fluid_force->set_arg(7, &spiky_grad);
+    _kernel_fluid_force->set_arg(8,&grid_info);
+    _kernel_fluid_force->set_arg(13, &fluid_velocities);
+    _kernel_fluid_force->set_arg(15, &visc_lapl);
    
     for (auto& rb_info : _bodies) {
         if (rb_info.body->mass() > 0.0) {
@@ -312,11 +326,11 @@ void BoundaryHandler::apply_fluid_forces(cl_mem fluid_particles,
 
             _kernel_fluid_force->set_arg(0, &rb_info.transformed_sub_buffer);
             _kernel_fluid_force->set_arg(1, &rb_info.phi_sub_buffer);
-            _kernel_fluid_force->set_arg(11, &rb_info.particle_count);
-            _kernel_fluid_force->set_arg(12, &rb_info.forces);
-            _kernel_fluid_force->set_arg(13, &rb_info.torque);
-            _kernel_fluid_force->set_arg(14, &cm);
-            _kernel_fluid_force->set_arg(16, &rb_info.vel_sub_buffer);
+            _kernel_fluid_force->set_arg(9, &rb_info.particle_count);
+            _kernel_fluid_force->set_arg(10, &rb_info.forces);
+            _kernel_fluid_force->set_arg(11, &rb_info.torque);
+            _kernel_fluid_force->set_arg(12, &cm);
+            _kernel_fluid_force->set_arg(14, &rb_info.vel_sub_buffer);
 
             auto err = _kernel_fluid_force->run(rb_info.particle_count);
             CLError::check(err);
@@ -344,7 +358,7 @@ void BoundaryHandler::build_neighbourhood(cl_mem ref_positions,
         // Otherwise this will fail because _cell_intervals buffer will not 
         // be initialized
         _grid.compute_neigh_list(ref_positions,
-                                 _sorted_positions,
+                                 _image_positions,
                                  _cell_intervals,
                                  neigh_list,
                                  neigh_list_length,
@@ -366,6 +380,14 @@ cl_mem* BoundaryHandler::velocities_buffer() {
 
 cl_mem* BoundaryHandler::phi_buffer() {
     return &_sorted_phi;
+}
+
+cl_mem* BoundaryHandler::positions_image() {
+    return &_image_positions;
+}
+
+cl_mem* BoundaryHandler::phi_image() {
+    return &_image_phi;
 }
 
 int BoundaryHandler::particle_count() const {

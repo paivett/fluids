@@ -142,13 +142,18 @@ class BoundaryHandler {
          */
         cl_mem* positions_buffer();
 
+        cl_mem* positions_image();
+
         cl_mem* velocities_buffer();
 
-        //cl_mem* cell_intervals_buffer();
+        //cl_mem* velocities_image();
 
         cl_mem* phi_buffer();
 
-        // cl_mem* fluid_force_buffer();
+        cl_mem* phi_image();
+
+        cl_mem _image_positions;
+        cl_mem _image_phi;
 
     private:
         // The total count of particles that belong to the boundary surface
@@ -206,6 +211,9 @@ class BoundaryHandler {
         // Temporal buffers for sorting
         cl_mem _hashes, _tmp_hashes;
         cl_mem _mask, _tmp_mask;
+
+
+        //cl_mem _image_velocities;
 
         std::unique_ptr<CLProgram> _program;
         std::shared_ptr<CLKernel> _kernel_boundary_phi;

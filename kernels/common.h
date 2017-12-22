@@ -1,6 +1,8 @@
 #ifndef _CL_COMMON_H_
 #define _CL_COMMON_H_
 
+#define NEIGH_LIST_MAX_LENGTH   50
+
 // These structs are used to pass parameters to
 // kernels, and avoid passing too many parameters
 // that lead to confusion, and errors

@@ -20,6 +20,38 @@
 
 class CLAllocator {
     public:
+        
+        static cl_mem alloc_1d_image_from_buff(size_t size, cl_channel_order ch_order, cl_mem buffer) {
+            cl_int err;
+            
+            cl_image_format fmt;
+            fmt.image_channel_order = ch_order;
+            fmt.image_channel_data_type = CL_FLOAT;
+
+            cl_image_desc desc;
+            desc.image_type = CL_MEM_OBJECT_IMAGE1D_BUFFER;
+            desc.image_width = size;
+            //desc.image_array_size = size;
+            desc.image_row_pitch = 0;
+            desc.image_slice_pitch = 0;
+            desc.num_mip_levels = 0;
+            desc.num_samples = 0;
+            desc.buffer = buffer;
+
+            cl_mem image = clCreateImage(CLEnvironment::context(),
+                                         CL_MEM_READ_ONLY,
+                                         &fmt,
+                                         &desc,
+                                         nullptr,
+                                         &err);
+
+            CLError::check(err);
+
+            return image;
+        }
+        
+            
+        
         /**
          * @brief Allocates a new cl_mem on the device
          * @details Allocates a new cl_mem buffer on the device. The

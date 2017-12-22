@@ -3,8 +3,8 @@ time_step=0.0012
 max_vel=10.0
 fluid_particle_radius=0.008
 fluid_support_radius=0.032
-boundary_particle_radius=0.008
-boundary_support_radius=0.128
+pcisph_max_iterations=7
+pcisph_error_ratio=0.01
 method=wcsph
 
 # Physics settings

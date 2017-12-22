@@ -16,7 +16,7 @@ int main(int argc, char *argv[]) {
         ("help", "Print help")
         ("s,scene", "Scene file path", cxxopts::value<std::string>())
         ("c,config", "Config file path", cxxopts::value<std::string>())
-        ("o,perfomance_output", "Fps performance output file path", cxxopts::value<std::string>());
+        ("o,performance_output", "Fps performance output file path", cxxopts::value<std::string>());
     
     try {
         options.parse(argc, argv);
@@ -31,8 +31,8 @@ int main(int argc, char *argv[]) {
         auto config_filename = options["config"].as<std::string>();
         auto scene_filename = options["scene"].as<std::string>();
         string profiling_filename = "";
-        if (options.count("profile_output")) {
-            profiling_filename = options["profile_output"].as<std::string>();
+        if (options.count("performance_output")) {
+            profiling_filename = options["performance_output"].as<std::string>();
         }
 
         // Create directory for kernels profile

@@ -1,0 +1,49 @@
+{
+    "lights": [
+        {
+            "ambient_color": [100, 100, 100],
+            "diffuse_color": [255, 255, 255],
+            "specular_color": [255, 255, 255],
+            "direction": [-1.0, -1.0, -1.0]
+        }
+    ],
+    "fluid_volumes": [
+        {
+            "type": "box",
+            "name": "fluid_1",
+            "size": [0.99, 0.5, 0.99],
+            "center": [0.0, -0.25, 0]
+        }
+    ],
+    "container": {
+        "width": 1.0,
+        "height": 1.0,
+        "depth": 1.0
+    },
+    "rigid_bodies": [
+        {
+            "type": "cube",
+            "name": "cubes_1",
+            "size": 0.1,
+            "mass": 2,
+            "center": [0.0, 0.5, 0.0],
+            "rotation": [0,0,0,1]
+        },
+        {
+            "type": "cube",
+            "name": "cubes_2",
+            "size": 0.1,
+            "mass": 1.0,
+            "center": [0.0, 0.5, 0.25],
+            "rotation": [0,0,0,1]
+        },
+        {
+            "type": "cube",
+            "name": "cubes_3",
+            "size": 0.1,
+            "mass": 0.6,
+            "center": [0.25, 0.5, 0.0],
+            "rotation": [0,0,0,1]
+        }
+    ]
+}

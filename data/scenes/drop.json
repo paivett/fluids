@@ -8,7 +8,7 @@
         }
     ],
     "container": {
-        "width": 2.0,
+        "width": 1.0,
         "height": 1.0,
         "depth": 1.0
     },
@@ -16,9 +16,17 @@
         {
             "type": "box",
             "name": "fluid_1",
-            "size": [0.5, 1.0, 1.0],
-            "center": [0.74, 0.0, 0]
+            "size": [0.99, 0.5, 0.99],
+            "center": [0.0, -0.25, 0]
+        },
+        {
+            "type": "box",
+            "name": "fluid_2",
+            "size": [0.2, 0.2, 0.2],
+            "center": [0.0, 1.0, 0]
         }
     ],
-    "rigid_bodies": []
+    "rigid_bodies": [
+        
+    ]
 }

@@ -29,7 +29,7 @@ __kernel void bilateral(__read_only image2d_t input_img,
                 
                 if (fabs(sample_depth - depth) < 0.015f) {
                     //Spatial
-                    float r = length(convert_float2(delta)) * 0.0001f;
+                    float r = fast_length(convert_float2(delta)) * 0.0001f;
                     float w = exp(-r*r);
 
                     sum += sample_depth * w;

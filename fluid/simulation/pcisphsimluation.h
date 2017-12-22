@@ -189,6 +189,12 @@ class PCISPHSimulation : public FluidSimulation {
         // Neigh list for static boundaries
         cl_mem _sb_neigh_list;
         cl_mem _sb_neigh_list_length;
+
+        cl_mem _image_positions, _image_predicted_positions;
+        cl_mem _image_velocities;
+        cl_mem _image_densities;
+        cl_mem _image_normals;
+        cl_mem _image_pressures;
      
         ///////////////////////////////////////////////////////////////
         /// OPENCL KERNEL DECLARATIONS ////////////////////////////////
@@ -200,6 +206,7 @@ class PCISPHSimulation : public FluidSimulation {
         std::shared_ptr<CLKernel> _kernel_initial_st;
         std::shared_ptr<CLKernel> _kernel_normals;
         std::shared_ptr<CLKernel> _kernel_predict_vel_n_pos;
+        std::shared_ptr<CLKernel> _kernel_predict_pos;
         std::shared_ptr<CLKernel> _kernel_update_pressure;
         std::shared_ptr<CLKernel> _kernel_compute_pressure_force;
         std::shared_ptr<CLKernel> _kernel_compute_boundary_phi;
@@ -241,12 +248,12 @@ class PCISPHSimulation : public FluidSimulation {
 
         // For each particle, this is the maximum particles in the
         // neighbourhood to look at (and save)
-        const int _max_neigh_list_length = 50;
+        const int _max_neigh_list_length = NEIGH_LIST_MAX_LENGTH;
 
         // 
         const int _min_iterations = 3;
-        const int _max_iterations = 7;
-        const float _density_variation_threshold = 0.1;
+        int _max_iterations;
+        float _density_variation_threshold;
 
         ///////////////////////////////////////////////////////////////
         /// AUXILIARY METHODS /////////////////////////////////////////

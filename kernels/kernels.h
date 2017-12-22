@@ -7,9 +7,9 @@
 
 #ifdef USE_MULLER_KERNELS
 
-    #define W_DEFAULT(r_norm, h)             W_POLY6(r_norm, h)
-    #define GRAD_W_DEFAULT(r, r_norm, h)     GRAD_W_POLY6(r, r_norm, h)
-    #define LAPL_W_DEFAULT(r_norm, h)        LAPL_W_POLY6(r_norm, h)
+    #define W_DEFAULT(r_norm2, h)            W_POLY6(r_norm2, h)
+    #define GRAD_W_DEFAULT(r, r_norm2, h)    GRAD_W_POLY6(r, r_norm2, h)
+    #define LAPL_W_DEFAULT(r_norm2, h)       LAPL_W_POLY6(r_norm2, h)
 
     #define W_PRESSURE(r_norm, h)            W_SPIKY(r_norm, h)
     #define GRAD_W_PRESSURE(r, r_norm, h)    GRAD_W_SPIKY(r, r_norm, h)
@@ -21,9 +21,9 @@
 
 #else
 
-    #define W_DEFAULT(r_norm, h)             w_monaghan(r_norm, h)
-    #define GRAD_W_DEFAULT(r, r_norm, h)     grad_w_monaghan(r, r_norm, h)
-    #define LAPL_W_DEFAULT(r_norm, h)        lapl_w_monaghan(r_norm, h)
+    #define W_DEFAULT(r_norm2, h)             w_monaghan(r_norm2, h)
+    #define GRAD_W_DEFAULT(r, r_norm2, h)     grad_w_monaghan(r, r_norm2, h)
+    #define LAPL_W_DEFAULT(r_norm2, h)        lapl_w_monaghan(r_norm2, h)
 
     #define W_PRESSURE(r_norm, h)            w_monaghan(r_norm, h)
     #define GRAD_W_PRESSURE(r, r_norm, h)    grad_w_monaghan(r, r_norm, h)

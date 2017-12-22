@@ -40,7 +40,13 @@ _cell_intervals(nullptr),
 _neigh_list_length(nullptr),
 _neighbourhood_list(nullptr),
 _sb_neigh_list(nullptr),
-_sb_neigh_list_length(nullptr)
+_sb_neigh_list_length(nullptr),
+_image_positions(nullptr),
+_image_predicted_positions(nullptr),
+_image_velocities(nullptr),
+_image_densities(nullptr),
+_image_normals(nullptr),
+_image_pressures(nullptr)
 {
     // Initialize internal parameters
     _initialize_params(fluid_settings, sim_settings);
@@ -49,10 +55,10 @@ _sb_neigh_list_length(nullptr)
 
     // Initialize static boundary handler
     _boundary_handler = make_unique<BoundaryHandler>(*_grid,
-                                                     sim_settings.boundary_particle_radius,
-                                                     sim_settings.boundary_support_radius,
+                                                     sim_settings.fluid_particle_radius,
+                                                     sim_settings.fluid_support_radius,
                                                      _rest_density,
-                                                     1.15f);
+                                                     1.0f);
 }
 
 int PCISPHSimulation::particle_count() const {
@@ -92,7 +98,8 @@ void PCISPHSimulation::_simulate_pcisph_step(int min_iter, int max_iter) {
 
     // And now, compute the neighbourhood list for every fluid particle
     _grid->compute_neigh_list(_positions_sorted,
-                              _positions_sorted,
+                              //_positions_sorted,
+                              _image_positions,
                               _cell_intervals,
                               _neighbourhood_list,
                               _neigh_list_length,
@@ -106,7 +113,7 @@ void PCISPHSimulation::_simulate_pcisph_step(int min_iter, int max_iter) {
                                            _sb_neigh_list_length,
                                            _max_neigh_list_length,
                                            _particle_count);
-
+    
     // Compute initial densities
     CLAllocator::fill_buffer(_pressures, 0.0f, _particle_count);
     _kernel_initial_density->run(_particle_count);
@@ -122,9 +129,8 @@ void PCISPHSimulation::_simulate_pcisph_step(int min_iter, int max_iter) {
     for (int i=1; i <= max_iter; ++i) {
         // Predict the positions and velocities of the particles to
         // temporal buffers with the current forces
-        _kernel_predict_vel_n_pos->set_arg(4, &_positions_predicted);
-        _kernel_predict_vel_n_pos->set_arg(5, &_velocities_predicted);
-        _kernel_predict_vel_n_pos->run(_particle_count);
+        _kernel_predict_pos->set_arg(4, &_positions_predicted);
+        _kernel_predict_pos->run(_particle_count);
 
         // Update the particles pressures according to the new
         // predicted positions
@@ -142,10 +148,10 @@ void PCISPHSimulation::_simulate_pcisph_step(int min_iter, int max_iter) {
     }
 
     // Update rigid bodies
-    _boundary_handler->apply_fluid_forces(_positions_sorted,
-                                          _velocities_sorted,
-                                          _mass_densities,
-                                          _pressures,
+    _boundary_handler->apply_fluid_forces(_image_positions,
+                                          _image_velocities,
+                                          _image_densities,
+                                          _image_pressures,
                                           _cell_intervals,
                                           _particle_mass);
 
@@ -209,6 +215,13 @@ void PCISPHSimulation::_initialize_buffers() {
     _sb_neigh_list_length = CLAllocator::alloc_buffer<cl_int>(_particle_count);
     _sb_neigh_list = CLAllocator::alloc_buffer<cl_int>(_particle_count * _max_neigh_list_length);
 
+    _image_positions = CLAllocator::alloc_1d_image_from_buff(_particle_count, CL_RGBA, _positions_sorted);
+    _image_predicted_positions = CLAllocator::alloc_1d_image_from_buff(_particle_count, CL_RGBA, _positions_predicted);
+    _image_velocities = CLAllocator::alloc_1d_image_from_buff(_particle_count, CL_RGBA, _velocities_sorted);
+    _image_densities = CLAllocator::alloc_1d_image_from_buff(_particle_count, CL_R, _mass_densities);
+    _image_normals = CLAllocator::alloc_1d_image_from_buff(_particle_count, CL_RGBA, _normals);
+    _image_pressures = CLAllocator::alloc_1d_image_from_buff(_particle_count, CL_R, _pressures);
+    
     // Reset and store the references to the shared GL buffers
     _gl_shared_buffers.clear();
     _gl_shared_buffers.push_back(_positions_unsorted);
@@ -218,6 +231,8 @@ void PCISPHSimulation::_initialize_params(const PhysicsSettings& fluid_settings,
                                           const SimulationSettings& sim_settings) {
     _dt = sim_settings.time_step;
     _max_vel = sim_settings.max_vel;
+    _max_iterations = sim_settings.pcisph_max_iterations;
+    _density_variation_threshold = sim_settings.pcisph_error_ratio;
     _rest_density = fluid_settings.rest_density;
     _k_viscosity = fluid_settings.k_viscosity;
     _surface_tension = fluid_settings.surface_tension;
@@ -244,8 +259,8 @@ void PCISPHSimulation::reset(const PhysicsSettings& fluid_settings,
     // Reset internal params
     _initialize_params(fluid_settings, sim_settings);
     
-    _boundary_handler->set_particle_radius(sim_settings.boundary_particle_radius);
-    _boundary_handler->set_support_radius(sim_settings.boundary_support_radius);
+    _boundary_handler->set_particle_radius(sim_settings.fluid_particle_radius);
+    _boundary_handler->set_support_radius(sim_settings.fluid_support_radius);
 
     _initialize_solver();
 }
@@ -262,30 +277,39 @@ void PCISPHSimulation::_setup_kernel_params() {
     auto viscosity_lapl = _smoothing_constants.viscosity_lapl(_support_radius);
     auto pressure_grad = _smoothing_constants.pressure_grad(_support_radius);
 
-    _kernel_initial_density->set_arg(0, &_positions_sorted);   
+    _kernel_initial_density->set_arg(0, &_image_positions);
     _kernel_initial_density->set_arg(1, &_mass_densities);
-    _kernel_initial_density->set_arg(2, &_pressures);
-    _kernel_initial_density->set_arg(3, &_neigh_list_length);
-    _kernel_initial_density->set_arg(4, &_neighbourhood_list);
-    _kernel_initial_density->set_arg(5, &_sb_neigh_list);
-    _kernel_initial_density->set_arg(6, &_sb_neigh_list_length);
-    _kernel_initial_density->set_arg(7, _boundary_handler->positions_buffer());
-    _kernel_initial_density->set_arg(8, _boundary_handler->phi_buffer());
-    _kernel_initial_density->set_arg(9, &default_eval);
+    _kernel_initial_density->set_arg(2, &_neigh_list_length);
+    _kernel_initial_density->set_arg(3, &_neighbourhood_list);
+    _kernel_initial_density->set_arg(4, &_sb_neigh_list);
+    _kernel_initial_density->set_arg(5, &_sb_neigh_list_length);
+    if (_boundary_handler->particle_count() > 0) {
+        _kernel_initial_density->set_arg(6, &_boundary_handler->_image_positions);
+        _kernel_initial_density->set_arg(7, &_boundary_handler->_image_phi);
+    }
+    else {
+        // We bind something so that the kernel does not fail, because 
+        // if there are no boundary particles, the image_position and 
+        // image_phi are nullptr
+        _kernel_initial_density->set_arg(6, &_image_positions);
+        _kernel_initial_density->set_arg(7, &_image_positions);
+    }
+    _kernel_initial_density->set_arg(8, &default_eval);
+    _kernel_initial_density->set_local_buffer(9, sizeof(cl_float4));
 
-    _kernel_normals->set_arg(0, &_positions_sorted);
-    _kernel_normals->set_arg(1, &_mass_densities);
+    _kernel_normals->set_arg(0, &_image_positions);
+    _kernel_normals->set_arg(1, &_image_densities);
     _kernel_normals->set_arg(2, &_normals);
     _kernel_normals->set_arg(3, &_neigh_list_length);
     _kernel_normals->set_arg(4, &_neighbourhood_list);
     _kernel_normals->set_arg(5, &default_grad);
-    _kernel_normals->set_arg(6, &_particle_mass);
-    _kernel_normals->set_arg(7, &_support_radius);
+    _kernel_normals->set_local_buffer(6, sizeof(cl_float4));
+    _kernel_normals->set_local_buffer(7, sizeof(cl_float));
 
-    _kernel_initial_forces->set_arg(0, &_positions_sorted);
-    _kernel_initial_forces->set_arg(1, &_velocities_sorted);
-    _kernel_initial_forces->set_arg(2, &_mass_densities);
-    _kernel_initial_forces->set_arg(3, &_normals);
+    _kernel_initial_forces->set_arg(0, &_image_positions);
+    _kernel_initial_forces->set_arg(1, &_image_velocities);
+    _kernel_initial_forces->set_arg(2, &_image_densities);
+    _kernel_initial_forces->set_arg(3, &_image_normals);
     _kernel_initial_forces->set_arg(4, &_particle_force);   
     _kernel_initial_forces->set_arg(5, &_k_viscosity);
     _kernel_initial_forces->set_arg(6, &_surface_tension);
@@ -294,6 +318,10 @@ void PCISPHSimulation::_setup_kernel_params() {
     _kernel_initial_forces->set_arg(9, &viscosity_lapl);
     _kernel_initial_forces->set_arg(10, &_st_kernel_main_constant);
     _kernel_initial_forces->set_arg(11, &_st_kernel_term_constant);
+    _kernel_initial_forces->set_local_buffer(12, sizeof(cl_float4));
+    _kernel_initial_forces->set_local_buffer(13, sizeof(cl_float4));
+    _kernel_initial_forces->set_local_buffer(14, sizeof(cl_float));
+    _kernel_initial_forces->set_local_buffer(15, sizeof(cl_float4));
 
     _kernel_predict_vel_n_pos->set_arg(0, &_positions_sorted);
     _kernel_predict_vel_n_pos->set_arg(1, &_velocities_sorted);
@@ -306,7 +334,17 @@ void PCISPHSimulation::_setup_kernel_params() {
     _kernel_predict_vel_n_pos->set_arg(8, &_max_vel);
     _kernel_predict_vel_n_pos->set_arg(9, &_container_size);
 
-    _kernel_update_pressure->set_arg(0, &_positions_predicted);
+    _kernel_predict_pos->set_arg(0, &_positions_sorted);
+    _kernel_predict_pos->set_arg(1, &_velocities_sorted);
+    _kernel_predict_pos->set_arg(2, &_particle_force);
+    _kernel_predict_pos->set_arg(3, &_pressure_force);
+    _kernel_predict_pos->set_arg(4, &_positions_predicted);
+    _kernel_predict_pos->set_arg(5, &_dt);
+    _kernel_predict_pos->set_arg(6, &_g);
+    _kernel_predict_pos->set_arg(7, &_max_vel);
+    _kernel_predict_pos->set_arg(8, &_container_size);
+
+    _kernel_update_pressure->set_arg(0, &_image_predicted_positions);
     _kernel_update_pressure->set_arg(1, &_mass_density_variation);
     _kernel_update_pressure->set_arg(2, &_pressures);
     _kernel_update_pressure->set_arg(3, &_density_scale_factor);
@@ -314,25 +352,54 @@ void PCISPHSimulation::_setup_kernel_params() {
     _kernel_update_pressure->set_arg(5, &_neighbourhood_list);
     _kernel_update_pressure->set_arg(6, &_sb_neigh_list);
     _kernel_update_pressure->set_arg(7, &_sb_neigh_list_length);
-    _kernel_update_pressure->set_arg(8, _boundary_handler->positions_buffer());
-    _kernel_update_pressure->set_arg(9, _boundary_handler->phi_buffer());
+    if (_boundary_handler->particle_count() > 0) {
+        _kernel_update_pressure->set_arg(8, &_boundary_handler->_image_positions);
+        _kernel_update_pressure->set_arg(9, &_boundary_handler->_image_phi);
+    }
+    else {
+        // We bind something so that the kernel does not fail, because 
+        // if there are no boundary particles, the image_position and 
+        // image_phi are nullptr
+        _kernel_update_pressure->set_arg(8, &_image_positions);
+        _kernel_update_pressure->set_arg(9, &_image_positions);
+    }
     _kernel_update_pressure->set_arg(10, &default_eval);
+    _kernel_update_pressure->set_local_buffer(11, sizeof(cl_float4));
     
-    _kernel_compute_pressure_force->set_arg(0, &_positions_sorted);
-    _kernel_compute_pressure_force->set_arg(1, &_mass_densities);
-    _kernel_compute_pressure_force->set_arg(2, &_pressures);
+    _kernel_compute_pressure_force->set_arg(0, &_image_positions);
+    _kernel_compute_pressure_force->set_arg(1, &_image_densities);
+    _kernel_compute_pressure_force->set_arg(2, &_image_pressures);
     _kernel_compute_pressure_force->set_arg(3, &_pressure_force);  
     _kernel_compute_pressure_force->set_arg(4, &grid_info);
     _kernel_compute_pressure_force->set_arg(5, &_neigh_list_length);
     _kernel_compute_pressure_force->set_arg(6, &_neighbourhood_list);
     _kernel_compute_pressure_force->set_arg(7, &_sb_neigh_list);
     _kernel_compute_pressure_force->set_arg(8, &_sb_neigh_list_length);
-    _kernel_compute_pressure_force->set_arg(9, _boundary_handler->positions_buffer());
-    _kernel_compute_pressure_force->set_arg(10, _boundary_handler->phi_buffer());
+    if (_boundary_handler->particle_count() > 0) {
+        _kernel_compute_pressure_force->set_arg(9, &_boundary_handler->_image_positions);
+        _kernel_compute_pressure_force->set_arg(10, &_boundary_handler->_image_phi);
+    }
+    else {
+        // We bind something so that the kernel does not fail, because 
+        // if there are no boundary particles, the image_position and 
+        // image_phi are nullptr
+        _kernel_compute_pressure_force->set_arg(9, &_image_positions);
+        _kernel_compute_pressure_force->set_arg(10, &_image_positions);
+    }
     _kernel_compute_pressure_force->set_arg(11, &pressure_grad);
+    _kernel_compute_pressure_force->set_local_buffer(12, sizeof(cl_float4));
+    _kernel_compute_pressure_force->set_local_buffer(13, sizeof(cl_float));
+    _kernel_compute_pressure_force->set_local_buffer(14, sizeof(cl_float));
 }
 
 void PCISPHSimulation::_release_buffers() {
+    CLAllocator::release_buffer(_image_positions);
+    CLAllocator::release_buffer(_image_predicted_positions);
+    CLAllocator::release_buffer(_image_velocities);
+    CLAllocator::release_buffer(_image_densities);
+    CLAllocator::release_buffer(_image_normals);
+    CLAllocator::release_buffer(_image_pressures);
+
     CLAllocator::release_buffer(_positions_unsorted);
     CLAllocator::release_buffer(_positions_sorted);
     CLAllocator::release_buffer(_positions_predicted);
@@ -436,6 +503,9 @@ void PCISPHSimulation::_build_kernels() {
     compiler.define_constant("PARTICLE_MASS", _particle_mass);
     compiler.define_constant("REST_DENSITY", _rest_density);
     compiler.define_constant("USE_MULLER_KERNELS");
+    if (_boundary_handler->particle_count()) {
+        compiler.define_constant("COMPUTE_BOUNDARY", 1);
+    }
 
     // Compile!
     _program = compiler.build();
@@ -444,6 +514,7 @@ void PCISPHSimulation::_build_kernels() {
     _kernel_initial_density = _program->get_kernel("compute_initial_density");
     _kernel_initial_forces = _program->get_kernel("compute_initial_forces");
     _kernel_predict_vel_n_pos = _program->get_kernel("predict_vel_n_pos");
+    _kernel_predict_pos = _program->get_kernel("predict_pos");
     _kernel_update_pressure = _program->get_kernel("update_pressure");
     _kernel_compute_pressure_force = _program->get_kernel("compute_pressure_force");
     _kernel_normals = _program->get_kernel("compute_normals");

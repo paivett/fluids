@@ -24,8 +24,9 @@ void Settings::load(const string& config_file, const string& scene_file) {
     _simulation->max_vel                = atof(parser.option("max_vel").c_str());
     _simulation->fluid_particle_radius  = atof(parser.option("fluid_particle_radius").c_str());
     _simulation->fluid_support_radius   = atof(parser.option("fluid_support_radius").c_str());
-    _simulation->boundary_particle_radius  = atof(parser.option("boundary_particle_radius").c_str());
-    _simulation->boundary_support_radius   = atof(parser.option("boundary_support_radius").c_str());
+    _simulation->pcisph_max_iterations  = atoi(parser.option("pcisph_max_iterations").c_str());
+    _simulation->pcisph_error_ratio     = atof(parser.option("pcisph_error_ratio").c_str());
+    
     auto method = parser.option("method");
     if (method == "wcsph") {
         _simulation->sim_method = SimulationSettings::Method::WCSPH;

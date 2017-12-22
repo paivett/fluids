@@ -48,7 +48,17 @@ constant int4 CELL_NEIGH_OFFSET[27] = {
     (int4)(1,  1,  1, 0)
 };
 
-
+#define FOR_EACH_NEIGH(particle_pos, cell_intervals, grid_info, code)  {\
+    int __list_len = 0;\
+    int4 __cell_coord = get_grid_coordinates(&particle_pos, &grid_info);\
+    for (int __offset=0; (__list_len < NEIGH_LIST_MAX_LENGTH) && __offset<27; ++__offset) {\
+        int4 __neigh_cell_coord = __cell_coord + CELL_NEIGH_OFFSET[__offset]; \
+        int2 __interval = cell_intervals[CELL_ID(__neigh_cell_coord.x, __neigh_cell_coord.y, __neigh_cell_coord.z, grid_info)]; \
+        for (int j=__interval.x; (__list_len < NEIGH_LIST_MAX_LENGTH) && (j < __interval.y); ++j) {\
+            code\
+        }\
+    }\
+}
 
 /**
  * @brief Computes the coordinates within the 3d-grid.
