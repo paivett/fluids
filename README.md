@@ -6,12 +6,7 @@ This implementation features real-time simulation of fluid and solids, including
 
 This project is part of my master thesis.
 
-Here are some samples
-
- - https://youtu.be/RLL-Qc26Ii8
- - https://youtu.be/XR3srvZfKl0 
- - https://youtu.be/tPmuJZ7y9oU
- - https://youtu.be/Spij7ujueHc
+Here is a sample: https://www.youtube.com/watch?v=_64g8nXxZ-0
 
 ## Getting Started
 
